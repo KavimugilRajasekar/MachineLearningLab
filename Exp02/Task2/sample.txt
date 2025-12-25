@@ -1,0 +1,3 @@
+This is a sample file.
+Python File Handling Example.
+Appending new content.
