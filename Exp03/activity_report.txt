@@ -1,0 +1,9 @@
+----- Student Activity Report -----
+
+S101 | Asha | Logins: 1 | Submissions: 0
+S102 | Ravi | Logins: 2 | Submissions: 1
+
+----- Daily Activity Statistics -----
+2025-03-10 - LOGIN: 3
+2025-03-10 - LOGOUT: 1
+2025-03-10 - SUBMIT_ASSIGNMENT: 1
