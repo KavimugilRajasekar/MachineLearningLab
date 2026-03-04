@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #ffffff;
+            --surface: #f1f5f9;
+            --border: #000000;
+            --text: #0f172a;
+            --accent: #64748b;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            color: var(--border);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+        }
+
+        p {
+            color: var(--accent);
+            font-size: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            background: var(--surface);
+            border-radius: 30px;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            box-shadow: 10px 10px 0px rgba(0, 0, 0, 0.05);
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            /* Removed transform: scaleX(-1) to keep text readable */
+        }
+
+        .status-container {
+            margin-top: 2.5rem;
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .status-badge {
+            padding: 0.6rem 1.8rem;
+            background: var(--bg);
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            color: var(--border);
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Face Recognizer</h1>
+            <p>Real-Time Detection</p>
+        </header>
+
+        <div class="video-wrapper">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="status-container">
+            <div class="status-badge">
+                <div class="dot"></div>
+                SYSTEM ACTIVE
+            </div>
+            <div class="status-badge">
+                <div class="dot" style="background: var(--accent);"></div>
+                WAIT A SEC FOR FACE DETECTION
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 }
+                });
+                video.srcObject = stream;
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        resolve(video);
+                    };
+                });
+            } catch (err) {
+                console.error("Camera access denied:", err);
+            }
+        }
+
+        async function processFrame() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = tempCanvas.toDataURL('image/jpeg', 0.7);
+
+            try {
+                const response = await fetch('/process_frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+                const data = await response.json();
+                drawResults(data.faces);
+            } catch (err) {
+                console.error("Processing error:", err);
+            }
+
+            requestAnimationFrame(processFrame);
+        }
+
+        function drawResults(faces) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            faces.forEach(face => {
+                const [top, right, bottom, left] = face.location;
+
+                // Map coordinates to mirrored view
+                // Since video is scaleX(-1), we need to flip X coordinates manually for the canvas
+                const mirrored_left = canvas.width - right;
+                const mirrored_right = canvas.width - left;
+                const width = mirrored_right - mirrored_left;
+
+                // Minimalist Black Box
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 4;
+                ctx.lineJoin = 'round';
+
+                ctx.strokeRect(mirrored_left, top, width, bottom - top);
+
+                // Label
+                ctx.fillStyle = '#000000';
+                const label = `${face.name.toUpperCase()} ${face.confidence}`;
+                ctx.font = 'bold 14px Outfit';
+                const textWidth = ctx.measureText(label).width;
+
+                ctx.fillRect(mirrored_left, top - 25, textWidth + 15, 25);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(label, mirrored_left + 7, top - 7);
+            });
+        }
+
+        setupCamera().then(() => {
+            processFrame();
+        });
+    </script>
+</body>
+
+</html>
